@@ -3,340 +3,212 @@ package br.mackenzie;
 import com.badlogic.gdx.ApplicationListener;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
+import com.badlogic.gdx.graphics.g2d.GlyphLayout;
 import com.badlogic.gdx.graphics.g2d.Sprite;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.utils.Array;
-import com.badlogic.gdx.utils.ScreenUtils;
-import com.badlogic.gdx.graphics.Color;
-import com.badlogic.gdx.utils.viewport.FitViewport;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.Array;
+import com.badlogic.gdx.utils.ScreenUtils;
+import com.badlogic.gdx.utils.viewport.FitViewport;
 
 public class Main implements ApplicationListener {
 
-    Texture heroTexture;
-    Texture heroJumpTexture;
+    // --- TEXTURAS (UMA POR LINHA) ---
+    private Texture heroTexture;
+    private Texture heroJumpTexture;
+    private Texture obstacleTexture;
+    private Texture ceuTexture;
+    private Texture predios1Texture;
+    private Texture sombraTexture;
+    private Texture predios2Texture;
+    private Texture trilhos1Texture;
+    private Texture trilhos2Texture;
 
-    Texture ceuTexture;
-    Texture predios1Texture;
-    Texture sombraTexture;
-    Texture predios2Texture;
-    Texture trilhos1Texture;
-    Texture trilhos2Texture;
+    // --- OBJETOS BASE ---
+    private Sprite heroSprite;
+    private SpriteBatch spriteBatch;
+    private FitViewport viewport;
+    private BitmapFont font;
+    private GlyphLayout layout;
 
-    Texture obstacleTexture;
+    // --- FÍSICA E ESTADO ---
+    private float speed = 4f;
+    private float groundY = 1.5f;
+    private float velocityY = 0;
+    private float gravity = -20f;
+    private float jumpForce = 8f;
+    private boolean isJumping = false;
+    private boolean gameOver = false;
+    private boolean showMenu = false;
 
-    Texture gameoverScreen;
+    // --- OBSTÁCULOS ---
+    private Array<Sprite> obstacles;
+    private float obstacleTimer = 0;
 
-    Texture restartBtn;
-    Texture restartBtnHover;
+    // --- HITBOXES E COLISÕES ---
+    private Rectangle heroRect;
+    private Rectangle obstacleRect;
+    private Rectangle restartRect = new Rectangle();
+    private Rectangle menuBtnRect = new Rectangle();
+    private Rectangle btnFacil = new Rectangle();
+    private Rectangle btnMedio = new Rectangle();
+    private Rectangle btnDificil = new Rectangle();
 
-    Rectangle restartRect;
+    // --- AUXILIARES ---
+    private Vector3 touchPos = new Vector3();
+    private float offsetCeu = 0;
+    private float offsetPredios1 = 0;
+    private float offsetSombra = 0;
+    private float offsetPredios2 = 0;
+    private float offsetTrilhos1 = 0;
+    private float offsetTrilhos2 = 0;
 
-    boolean gameOver = false;
-
-    Sprite heroSprite;
-
-    SpriteBatch spriteBatch;
-    FitViewport viewport;
-
-    BitmapFont font;
-
-    float speed = 4f;
-    float groundY = 1.5f;
-
-    float velocityY = 0;
-    float gravity = -20f;
-    float jumpForce = 8f;
-
-    boolean isJumping = false;
-
-    Array<Sprite> obstacles;
-    float obstacleTimer = 0;
-
-    Rectangle heroRect;
-    Rectangle obstacleRect;
-
-    Vector3 touchPos = new Vector3();
-
-    float offsetCeu = 0;
-    float offsetPredios1 = 0;
-    float offsetSombra = 0;
-    float offsetPredios2 = 0;
-    float offsetTrilhos1 = 0;
-    float offsetTrilhos2 = 0;
-
-    // SCORE E FASES
-    float score = 0;
-
-    float gameSpeed = 2f;
-    float spawnRate = 2f;
-
-    int currentPhase = 1;
-    String phaseName = "FACIL";
+    // --- PONTUAÇÃO E DIFICULDADE ---
+    private float scoreAcumulado = 0;
+    private int score = 0;
+    private int highscore = 0;
+    private float gameSpeed = 2.5f;
+    private float spawnRate = 2f;
+    private float multiplicadorPontos = 15f;
+    private String phaseName = "FACIL";
 
     @Override
     public void create() {
-
+        // Inicialização das Texturas
         heroTexture = new Texture("hero01.png");
         heroJumpTexture = new Texture("heroJump.png");
-
         ceuTexture = new Texture("ceu1.png");
         predios1Texture = new Texture("predios2.png");
         sombraTexture = new Texture("sombrapredios3.png");
         predios2Texture = new Texture("predios4.png");
         trilhos1Texture = new Texture("trilhos5.png");
         trilhos2Texture = new Texture("trilhos6.png");
-
         obstacleTexture = new Texture("obstaculo.png");
 
-        gameoverScreen = new Texture("gameoverScreen.png");
-
-        restartBtn = new Texture("restart.png");
-        restartBtnHover = new Texture("restartHover.png");
-
         spriteBatch = new SpriteBatch();
-
         viewport = new FitViewport(8, 5);
+        layout = new GlyphLayout();
 
-        // FONTE
-        font = new BitmapFont();
-        font.getData().setScale(0.03f);
+        // Inicialização da Fonte
+        FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("ka1.ttf"));
+        FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
+        parameter.size = 30;
+        parameter.color = Color.WHITE;
+        font = generator.generateFont(parameter);
+        generator.dispose();
 
-        // PERSONAGEM
+        font.setUseIntegerPositions(false);
+        font.getData().setScale(0.012f);
+
+        // Personagem e Colisões
         heroSprite = new Sprite(heroTexture);
         heroSprite.setSize(1, 1);
         heroSprite.setPosition(1, groundY);
 
-        // OBSTÁCULOS
         obstacles = new Array<>();
-
-        // COLISÃO
         heroRect = new Rectangle();
         obstacleRect = new Rectangle();
-
-        // BOTÃO RESTART
-        restartRect = new Rectangle(3, 0.5f, 2, 0.8f);
-    }
-
-    @Override
-    public void resize(int width, int height) {
-
-        if(width <= 0 || height <= 0) return;
-
-        viewport.update(width, height, true);
     }
 
     @Override
     public void render() {
-
         input();
-
         logic();
-
         draw();
     }
 
     private void input() {
-
-        touchPos.set(
-            Gdx.input.getX(),
-            Gdx.input.getY(),
-            0
-        );
-
+        touchPos.set(Gdx.input.getX(), Gdx.input.getY(), 0);
         viewport.unproject(touchPos);
 
-        // RESTART
-        if(Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
-
-            if(gameOver &&
-                restartRect.contains(touchPos.x, touchPos.y)) {
-
-                resetGame();
+        if (Gdx.input.isButtonJustPressed(Input.Buttons.LEFT)) {
+            if (gameOver && !showMenu) {
+                if (restartRect.contains(touchPos.x, touchPos.y)) resetGame(1);
+                if (menuBtnRect.contains(touchPos.x, touchPos.y)) showMenu = true;
+            } else if (showMenu) {
+                if (btnFacil.contains(touchPos.x, touchPos.y)) resetGame(1);
+                if (btnMedio.contains(touchPos.x, touchPos.y)) resetGame(2);
+                if (btnDificil.contains(touchPos.x, touchPos.y)) resetGame(3);
             }
         }
 
-        if(gameOver) return;
+        if (gameOver || showMenu) return;
 
         float delta = Gdx.graphics.getDeltaTime();
-
-        // MOVIMENTO
-        if(Gdx.input.isKeyPressed(Input.Keys.RIGHT)) {
-
-            heroSprite.translateX(speed * delta);
-        }
-
-        if(Gdx.input.isKeyPressed(Input.Keys.LEFT)) {
-
-            heroSprite.translateX(-speed * delta);
-        }
-
-        // PULO
-        if((Gdx.input.isKeyJustPressed(Input.Keys.SPACE)
-            || Gdx.input.isKeyJustPressed(Input.Keys.UP))
-            && !isJumping) {
-
+        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) heroSprite.translateX(speed * delta);
+        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) heroSprite.translateX(-speed * delta);
+        if ((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) && !isJumping) {
             velocityY = jumpForce;
-
             isJumping = true;
         }
     }
 
     private void logic() {
-
         float delta = Gdx.graphics.getDeltaTime();
 
-        if(!gameOver) {
+        offsetCeu -= 0.1f * delta;
+        offsetPredios1 -= 0.3f * delta;
+        offsetSombra -= 0.5f * delta;
+        offsetPredios2 -= 0.8f * delta;
+        offsetTrilhos1 -= gameSpeed * 0.7f * delta;
+        offsetTrilhos2 -= 0;
 
-            float worldWidth = viewport.getWorldWidth();
+        if (gameOver || showMenu) return;
 
-            // GRAVIDADE
-            velocityY += gravity * delta;
+        velocityY += gravity * delta;
+        heroSprite.translateY(velocityY * delta);
 
-            heroSprite.translateY(velocityY * delta);
+        if (heroSprite.getY() <= groundY) {
+            heroSprite.setY(groundY);
+            velocityY = 0;
+            isJumping = false;
+        }
+        heroSprite.setTexture(isJumping ? heroJumpTexture : heroTexture);
+        heroSprite.setX(MathUtils.clamp(heroSprite.getX(), 0, viewport.getWorldWidth() - heroSprite.getWidth()));
 
-            // CHÃO
-            if(heroSprite.getY() <= groundY) {
+        obstacleTimer += delta;
+        if (obstacleTimer >= spawnRate) {
+            obstacleTimer = 0;
+            Sprite obs = new Sprite(obstacleTexture);
+            obs.setSize(1, 1);
+            obs.setPosition(viewport.getWorldWidth(), 1.3f);
+            obstacles.add(obs);
+        }
 
-                heroSprite.setY(groundY);
+        for (int i = obstacles.size - 1; i >= 0; i--) {
+            Sprite obs = obstacles.get(i);
+            obs.translateX(-gameSpeed * delta);
+            if (obs.getX() < -1) { obstacles.removeIndex(i); continue; }
 
-                velocityY = 0;
+            heroRect.set(heroSprite.getX() + 0.2f, heroSprite.getY() + 0.1f, 0.5f, 0.7f);
+            obstacleRect.set(obs.getX() + 0.2f, obs.getY() + 0.1f, 0.5f, 0.7f);
 
-                isJumping = false;
-            }
-
-            // TROCA SPRITE
-            heroSprite.setTexture(
-                isJumping ? heroJumpTexture : heroTexture
-            );
-
-            // LIMITE TELA
-            heroSprite.setX(MathUtils.clamp(
-                heroSprite.getX(),
-                0,
-                worldWidth - heroSprite.getWidth()
-            ));
-
-            // SPAWN
-            obstacleTimer += delta;
-
-            if(obstacleTimer > spawnRate) {
-
-                obstacleTimer = 0;
-
-                Sprite obstacle = new Sprite(obstacleTexture);
-
-                obstacle.setSize(1, 1);
-
-                obstacle.setPosition(worldWidth, 1.3f);
-
-                obstacles.add(obstacle);
-            }
-
-            // OBSTÁCULOS
-            for(int i = obstacles.size - 1; i >= 0; i--) {
-
-                Sprite obstacle = obstacles.get(i);
-
-                obstacle.translateX(-gameSpeed * delta);
-
-                // REMOVE
-                if(obstacle.getX() < -1) {
-
-                    obstacles.removeIndex(i);
-
-                    continue;
-                }
-
-                // COLISÃO
-                heroRect.set(
-                    heroSprite.getX(),
-                    heroSprite.getY(),
-                    0.7f,
-                    0.7f
-                );
-
-                obstacleRect.set(
-                    obstacle.getX(),
-                    obstacle.getY(),
-                    0.7f,
-                    0.7f
-                );
-
-                if(heroRect.overlaps(obstacleRect)) {
-
-                    gameOver = true;
-                }
-            }
-
-            // SCORE
-            score += delta * 10;
-
-            // VELOCIDADE PROGRESSIVA
-            gameSpeed += delta * 0.03f;
-
-            // FASES
-            if(score > 200 && currentPhase == 1) {
-
-                currentPhase = 2;
-
-                phaseName = "MEDIO";
-
-                gameSpeed = 3f;
-
-                spawnRate = 1.5f;
-            }
-
-            if(score > 500 && currentPhase == 2) {
-
-                currentPhase = 3;
-
-                phaseName = "DIFICIL";
-
-                gameSpeed = 4f;
-
-                spawnRate = 1f;
+            if (heroRect.overlaps(obstacleRect)) {
+                gameOver = true;
+                if (score > highscore) highscore = score;
             }
         }
 
-        // PARALAXE
-        offsetCeu -= 0.1f * delta;
-        offsetPredios1 -= 0.3f * delta;
-        offsetSombra -= 0.4f * delta;
-        offsetPredios2 -= 0.6f * delta;
-        offsetTrilhos1 -= 1.5f * delta;
-    }
+        scoreAcumulado += delta * multiplicadorPontos;
+        score = (int) scoreAcumulado;
+        gameSpeed += delta * 0.1f;
 
-    private void drawLayer(Texture texture, float offset) {
-
-        float w = viewport.getWorldWidth();
-
-        float h = viewport.getWorldHeight();
-
-        float x = offset % w;
-
-        spriteBatch.draw(texture, x, 0, w, h);
-
-        spriteBatch.draw(texture, x + w, 0, w, h);
+        if (score >= 150 && phaseName.equals("FACIL")) aplicarDificuldade(2);
+        else if (score >= 400 && phaseName.equals("MEDIO")) aplicarDificuldade(3);
     }
 
     private void draw() {
-
         ScreenUtils.clear(Color.BLACK);
-
         viewport.apply();
-
-        spriteBatch.setProjectionMatrix(
-            viewport.getCamera().combined
-        );
-
+        spriteBatch.setProjectionMatrix(viewport.getCamera().combined);
         spriteBatch.begin();
 
-        // FUNDO
         drawLayer(ceuTexture, offsetCeu);
         drawLayer(predios1Texture, offsetPredios1);
         drawLayer(sombraTexture, offsetSombra);
@@ -344,158 +216,109 @@ public class Main implements ApplicationListener {
         drawLayer(trilhos1Texture, offsetTrilhos1);
         drawLayer(trilhos2Texture, offsetTrilhos2);
 
-        // OBSTÁCULOS
-        for(Sprite obstacle : obstacles) {
-
-            obstacle.draw(spriteBatch);
-        }
-
-        // PERSONAGEM
+        for (Sprite obs : obstacles) obs.draw(spriteBatch);
         heroSprite.draw(spriteBatch);
 
-        // HUD
-
-        // FUNDO DO HUD
-        spriteBatch.setColor(0, 0, 0, 0.45f);
-
-        spriteBatch.draw(
-            ceuTexture,
-            0.15f,
-            4.15f,
-            2.4f,
-            0.75f
-        );
-
-        spriteBatch.setColor(Color.WHITE);
-
-        // SCORE
-        font.setColor(Color.WHITE);
-
-        font.draw(
-            spriteBatch,
-            "SCORE: " + (int)score,
-            0.25f,
-            4.72f
-        );
-
-        // TEXTO FASE
-        font.draw(
-            spriteBatch,
-            "FASE:",
-            0.25f,
-            4.40f
-        );
-
-        // COR DA FASE
-        if(currentPhase == 1) {
-
-            font.setColor(Color.GREEN);
-
-        } else if(currentPhase == 2) {
-
-            font.setColor(Color.YELLOW);
-
+        if (!gameOver && !showMenu) {
+            font.draw(spriteBatch, "SCORE " + score + "  |  " + phaseName, 0.3f, 4.8f);
+        } else if (showMenu) {
+            drawMenuUI();
         } else {
-
-            font.setColor(Color.RED);
-        }
-
-        font.draw(
-            spriteBatch,
-            phaseName,
-            1.05f,
-            4.40f
-        );
-
-        font.setColor(Color.WHITE);
-
-        // GAME OVER
-        if(gameOver) {
-
-            float w = viewport.getWorldWidth();
-
-            float h = viewport.getWorldHeight();
-
-            float goWidth = w * 1.0f;
-
-            float goHeight = h * 1.0f;
-
-            float goX = (w - goWidth) / 2;
-
-            float goY = h * 0.2f;
-
-            spriteBatch.draw(
-                gameoverScreen,
-                goX,
-                goY,
-                goWidth,
-                goHeight
-            );
-
-            boolean hover = restartRect.contains(
-                touchPos.x,
-                touchPos.y
-            );
-
-            spriteBatch.draw(
-                hover ? restartBtnHover : restartBtn,
-                restartRect.x,
-                restartRect.y,
-                restartRect.width,
-                restartRect.height
-            );
+            drawGameOverUI();
         }
 
         spriteBatch.end();
     }
 
-    private void resetGame() {
+    private void drawGameOverUI() {
+        float w = viewport.getWorldWidth();
 
-        gameOver = false;
+        layout.setText(font, "FINAL SCORE: " + score);
+        font.draw(spriteBatch, "FINAL SCORE: " + score, (w - layout.width) / 2, 3.8f);
 
-        obstacles.clear();
+        layout.setText(font, "BEST RECORD: " + highscore);
+        font.draw(spriteBatch, "BEST RECORD: " + highscore, (w - layout.width) / 2, 3.2f);
 
-        heroSprite.setPosition(1, groundY);
+        String rText = "[ RESTART ]";
+        layout.setText(font, rText);
+        float rX = 1.2f;
+        float rY = 1.5f;
+        restartRect.set(rX, rY - layout.height, layout.width, layout.height + 0.2f);
+        font.setColor(restartRect.contains(touchPos.x, touchPos.y) ? Color.YELLOW : Color.WHITE);
+        font.draw(spriteBatch, rText, rX, rY);
 
-        score = 0;
+        String mText = "[ MENU ]";
+        layout.setText(font, mText);
+        float mX = 4.5f;
+        menuBtnRect.set(mX, rY - layout.height, layout.width, layout.height + 0.2f);
+        font.setColor(menuBtnRect.contains(touchPos.x, touchPos.y) ? Color.CYAN : Color.WHITE);
+        font.draw(spriteBatch, mText, mX, rY);
 
-        gameSpeed = 2f;
-
-        spawnRate = 2f;
-
-        currentPhase = 1;
-
-        phaseName = "FACIL";
+        font.setColor(Color.WHITE);
     }
 
-    @Override
-    public void pause() {}
+    private void drawMenuUI() {
+        float w = viewport.getWorldWidth();
+        layout.setText(font, "SELECIONE A DIFICULDADE");
+        font.draw(spriteBatch, "SELECIONE A DIFICULDADE", (w - layout.width) / 2, 4.0f);
 
-    @Override
-    public void resume() {}
+        drawMenuButton("1. FACIL", 3.2f, btnFacil, Color.GREEN);
+        drawMenuButton("2. MEDIO", 2.5f, btnMedio, Color.YELLOW);
+        drawMenuButton("3. DIFICIL", 1.8f, btnDificil, Color.RED);
+    }
 
-    @Override
-    public void dispose() {
+    private void drawMenuButton(String text, float y, Rectangle rect, Color hoverColor) {
+        layout.setText(font, text);
+        float x = (viewport.getWorldWidth() - layout.width) / 2;
+        rect.set(x, y - layout.height, layout.width, layout.height + 0.2f);
+        font.setColor(rect.contains(touchPos.x, touchPos.y) ? hoverColor : Color.WHITE);
+        font.draw(spriteBatch, text, x, y);
+        font.setColor(Color.WHITE);
+    }
 
+    private void resetGame(int fase) {
+        gameOver = false;
+        showMenu = false;
+        obstacles.clear();
+        heroSprite.setPosition(1, groundY);
+        velocityY = 0;
+        score = 0;
+        scoreAcumulado = 0;
+        obstacleTimer = 0;
+        aplicarDificuldade(fase);
+    }
+
+    private void aplicarDificuldade(int fase) {
+        if (fase == 1) {
+            phaseName = "FACIL"; gameSpeed = 2.5f; spawnRate = 2f; multiplicadorPontos = 15f;
+        } else if (fase == 2) {
+            phaseName = "MEDIO"; gameSpeed = 3.6f; spawnRate = 1.3f; multiplicadorPontos = 35f;
+        } else {
+            phaseName = "DIFICIL"; gameSpeed = 5.2f; spawnRate = 0.7f; multiplicadorPontos = 75f;
+        }
+    }
+
+    private void drawLayer(Texture tex, float offset) {
+        float w = viewport.getWorldWidth(), h = viewport.getWorldHeight();
+        float x = offset % w;
+        spriteBatch.draw(tex, x, 0, w, h);
+        spriteBatch.draw(tex, x + w, 0, w, h);
+    }
+
+    @Override public void resize(int w, int h) { viewport.update(w, h, true); }
+    @Override public void pause() {}
+    @Override public void resume() {}
+    @Override public void dispose() {
         heroTexture.dispose();
         heroJumpTexture.dispose();
-
         ceuTexture.dispose();
         predios1Texture.dispose();
         sombraTexture.dispose();
         predios2Texture.dispose();
         trilhos1Texture.dispose();
         trilhos2Texture.dispose();
-
         obstacleTexture.dispose();
-
-        gameoverScreen.dispose();
-
-        restartBtn.dispose();
-        restartBtnHover.dispose();
-
         font.dispose();
-
         spriteBatch.dispose();
     }
 }
