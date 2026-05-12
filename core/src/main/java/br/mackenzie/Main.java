@@ -19,7 +19,6 @@ import com.badlogic.gdx.utils.viewport.FitViewport;
 
 public class Main implements ApplicationListener {
 
-    // --- TEXTURAS (UMA POR LINHA) ---
     private Texture heroTexture;
     private Texture heroJumpTexture;
     private Texture obstacleTexture;
@@ -30,28 +29,26 @@ public class Main implements ApplicationListener {
     private Texture trilhos1Texture;
     private Texture trilhos2Texture;
 
-    // --- OBJETOS BASE ---
     private Sprite heroSprite;
     private SpriteBatch spriteBatch;
     private FitViewport viewport;
     private BitmapFont font;
     private GlyphLayout layout;
 
-    // --- FÍSICA E ESTADO ---
     private float speed = 4f;
     private float groundY = 1.5f;
     private float velocityY = 0;
     private float gravity = -20f;
     private float jumpForce = 8f;
     private boolean isJumping = false;
+    private boolean isDucking = false;
     private boolean gameOver = false;
     private boolean showMenu = false;
+    private boolean modoPedaleira = false;
 
-    // --- OBSTÁCULOS ---
     private Array<Sprite> obstacles;
     private float obstacleTimer = 0;
 
-    // --- HITBOXES E COLISÕES ---
     private Rectangle heroRect;
     private Rectangle obstacleRect;
     private Rectangle restartRect = new Rectangle();
@@ -59,8 +56,8 @@ public class Main implements ApplicationListener {
     private Rectangle btnFacil = new Rectangle();
     private Rectangle btnMedio = new Rectangle();
     private Rectangle btnDificil = new Rectangle();
+    private Rectangle btnPedaleira = new Rectangle();
 
-    // --- AUXILIARES ---
     private Vector3 touchPos = new Vector3();
     private float offsetCeu = 0;
     private float offsetPredios1 = 0;
@@ -69,7 +66,6 @@ public class Main implements ApplicationListener {
     private float offsetTrilhos1 = 0;
     private float offsetTrilhos2 = 0;
 
-    // --- PONTUAÇÃO E DIFICULDADE ---
     private float scoreAcumulado = 0;
     private int score = 0;
     private int highscore = 0;
@@ -80,7 +76,6 @@ public class Main implements ApplicationListener {
 
     @Override
     public void create() {
-        // Inicialização das Texturas
         heroTexture = new Texture("hero01.png");
         heroJumpTexture = new Texture("heroJump.png");
         ceuTexture = new Texture("ceu1.png");
@@ -95,7 +90,6 @@ public class Main implements ApplicationListener {
         viewport = new FitViewport(8, 5);
         layout = new GlyphLayout();
 
-        // Inicialização da Fonte
         FreeTypeFontGenerator generator = new FreeTypeFontGenerator(Gdx.files.internal("ka1.ttf"));
         FreeTypeFontGenerator.FreeTypeFontParameter parameter = new FreeTypeFontGenerator.FreeTypeFontParameter();
         parameter.size = 30;
@@ -106,7 +100,6 @@ public class Main implements ApplicationListener {
         font.setUseIntegerPositions(false);
         font.getData().setScale(0.012f);
 
-        // Personagem e Colisões
         heroSprite = new Sprite(heroTexture);
         heroSprite.setSize(1, 1);
         heroSprite.setPosition(1, groundY);
@@ -135,17 +128,30 @@ public class Main implements ApplicationListener {
                 if (btnFacil.contains(touchPos.x, touchPos.y)) resetGame(1);
                 if (btnMedio.contains(touchPos.x, touchPos.y)) resetGame(2);
                 if (btnDificil.contains(touchPos.x, touchPos.y)) resetGame(3);
+                if (btnPedaleira.contains(touchPos.x, touchPos.y)) resetGame(4);
             }
         }
 
         if (gameOver || showMenu) return;
 
         float delta = Gdx.graphics.getDeltaTime();
-        if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) heroSprite.translateX(speed * delta);
-        if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) heroSprite.translateX(-speed * delta);
-        if ((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) && !isJumping) {
+
+        if (!modoPedaleira) {
+            if (Gdx.input.isKeyPressed(Input.Keys.RIGHT)) heroSprite.translateX(speed * delta);
+            if (Gdx.input.isKeyPressed(Input.Keys.LEFT)) heroSprite.translateX(-speed * delta);
+        }
+
+        if ((Gdx.input.isKeyJustPressed(Input.Keys.SPACE) || Gdx.input.isKeyJustPressed(Input.Keys.UP)) && !isJumping && !isDucking) {
             velocityY = jumpForce;
             isJumping = true;
+        }
+
+        if ((Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN)) && !isJumping) {
+            isDucking = true;
+            heroSprite.setScale(1f, 0.5f);
+        } else {
+            isDucking = false;
+            heroSprite.setScale(1f, 1f);
         }
     }
 
@@ -169,6 +175,7 @@ public class Main implements ApplicationListener {
             velocityY = 0;
             isJumping = false;
         }
+
         heroSprite.setTexture(isJumping ? heroJumpTexture : heroTexture);
         heroSprite.setX(MathUtils.clamp(heroSprite.getX(), 0, viewport.getWorldWidth() - heroSprite.getWidth()));
 
@@ -186,7 +193,8 @@ public class Main implements ApplicationListener {
             obs.translateX(-gameSpeed * delta);
             if (obs.getX() < -1) { obstacles.removeIndex(i); continue; }
 
-            heroRect.set(heroSprite.getX() + 0.2f, heroSprite.getY() + 0.1f, 0.5f, 0.7f);
+            float heightScale = isDucking ? 0.4f : 0.7f;
+            heroRect.set(heroSprite.getX() + 0.2f, heroSprite.getY() + 0.1f, 0.5f, heightScale);
             obstacleRect.set(obs.getX() + 0.2f, obs.getY() + 0.1f, 0.5f, 0.7f);
 
             if (heroRect.overlaps(obstacleRect)) {
@@ -199,8 +207,10 @@ public class Main implements ApplicationListener {
         score = (int) scoreAcumulado;
         gameSpeed += delta * 0.1f;
 
-        if (score >= 150 && phaseName.equals("FACIL")) aplicarDificuldade(2);
-        else if (score >= 400 && phaseName.equals("MEDIO")) aplicarDificuldade(3);
+        if (!modoPedaleira) {
+            if (score >= 150 && phaseName.equals("FACIL")) aplicarDificuldade(2);
+            else if (score >= 400 && phaseName.equals("MEDIO")) aplicarDificuldade(3);
+        }
     }
 
     private void draw() {
@@ -232,7 +242,6 @@ public class Main implements ApplicationListener {
 
     private void drawGameOverUI() {
         float w = viewport.getWorldWidth();
-
         layout.setText(font, "FINAL SCORE: " + score);
         font.draw(spriteBatch, "FINAL SCORE: " + score, (w - layout.width) / 2, 3.8f);
 
@@ -241,8 +250,7 @@ public class Main implements ApplicationListener {
 
         String rText = "[ RESTART ]";
         layout.setText(font, rText);
-        float rX = 1.2f;
-        float rY = 1.5f;
+        float rX = 1.2f, rY = 1.5f;
         restartRect.set(rX, rY - layout.height, layout.width, layout.height + 0.2f);
         font.setColor(restartRect.contains(touchPos.x, touchPos.y) ? Color.YELLOW : Color.WHITE);
         font.draw(spriteBatch, rText, rX, rY);
@@ -253,18 +261,18 @@ public class Main implements ApplicationListener {
         menuBtnRect.set(mX, rY - layout.height, layout.width, layout.height + 0.2f);
         font.setColor(menuBtnRect.contains(touchPos.x, touchPos.y) ? Color.CYAN : Color.WHITE);
         font.draw(spriteBatch, mText, mX, rY);
-
         font.setColor(Color.WHITE);
     }
 
     private void drawMenuUI() {
         float w = viewport.getWorldWidth();
         layout.setText(font, "SELECIONE A DIFICULDADE");
-        font.draw(spriteBatch, "SELECIONE A DIFICULDADE", (w - layout.width) / 2, 4.0f);
+        font.draw(spriteBatch, "SELECIONE A DIFICULDADE", (w - layout.width) / 2, 4.2f);
 
-        drawMenuButton("1. FACIL", 3.2f, btnFacil, Color.GREEN);
-        drawMenuButton("2. MEDIO", 2.5f, btnMedio, Color.YELLOW);
-        drawMenuButton("3. DIFICIL", 1.8f, btnDificil, Color.RED);
+        drawMenuButton("1. FACIL", 3.4f, btnFacil, Color.GREEN);
+        drawMenuButton("2. MEDIO", 2.8f, btnMedio, Color.YELLOW);
+        drawMenuButton("3. DIFICIL", 2.2f, btnDificil, Color.RED);
+        drawMenuButton("4. PEDALEIRA", 1.6f, btnPedaleira, Color.ORANGE);
     }
 
     private void drawMenuButton(String text, float y, Rectangle rect, Color hoverColor) {
@@ -289,12 +297,16 @@ public class Main implements ApplicationListener {
     }
 
     private void aplicarDificuldade(int fase) {
+        modoPedaleira = (fase == 4);
+
         if (fase == 1) {
             phaseName = "FACIL"; gameSpeed = 2.5f; spawnRate = 2f; multiplicadorPontos = 15f;
         } else if (fase == 2) {
             phaseName = "MEDIO"; gameSpeed = 3.6f; spawnRate = 1.3f; multiplicadorPontos = 35f;
-        } else {
+        } else if (fase == 3) {
             phaseName = "DIFICIL"; gameSpeed = 5.2f; spawnRate = 0.7f; multiplicadorPontos = 75f;
+        } else if (fase == 4) {
+            phaseName = "PEDALEIRA"; gameSpeed = 4.0f; spawnRate = 1.1f; multiplicadorPontos = 50f;
         }
     }
 
@@ -309,16 +321,9 @@ public class Main implements ApplicationListener {
     @Override public void pause() {}
     @Override public void resume() {}
     @Override public void dispose() {
-        heroTexture.dispose();
-        heroJumpTexture.dispose();
-        ceuTexture.dispose();
-        predios1Texture.dispose();
-        sombraTexture.dispose();
-        predios2Texture.dispose();
-        trilhos1Texture.dispose();
-        trilhos2Texture.dispose();
-        obstacleTexture.dispose();
-        font.dispose();
-        spriteBatch.dispose();
+        heroTexture.dispose(); heroJumpTexture.dispose(); ceuTexture.dispose();
+        predios1Texture.dispose(); sombraTexture.dispose(); predios2Texture.dispose();
+        trilhos1Texture.dispose(); trilhos2Texture.dispose(); obstacleTexture.dispose();
+        font.dispose(); spriteBatch.dispose();
     }
 }
